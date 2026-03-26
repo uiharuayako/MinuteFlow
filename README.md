@@ -148,6 +148,230 @@ uv run minuteflow deps install whisperx
 - 仅安装 `transcription` 配置
 - 将总结 / 问答 / 多模态理解交给远程 API
 
+### 补充：离线下载模型（适合无外网机器）
+
+如果目标机器无法直接访问 Hugging Face，而且无网机器只需要继续调用你内网现成的大模型 API，那么最推荐的做法是：
+
+- 本地只离线准备 `faster-whisper` 转写模型
+- 总结 / 问答继续走内网 `MINUTEFLOW_LLM_*` API
+- 多模态分析继续走内网 `MINUTEFLOW_MM_*` API
+
+这样维护成本最低，也最容易排障。
+
+MinuteFlow 当前本地模型相关部分主要分三类：
+
+- `faster-whisper` 转写模型
+- `whisperx` 的转写 / 对齐模型
+- `pyannote.audio` 的说话人分离模型
+
+#### 方案 A：直接去网页下载 `faster-whisper` 模型
+
+这是最适合“有网机器手动下载，再拷到无网机器”的方案。
+
+推荐直接下载 SYSTRAN 提供的 CTranslate2 版本模型仓库：
+
+- `tiny`：[Systran/faster-whisper-tiny](https://huggingface.co/Systran/faster-whisper-tiny)
+- `base`：[Systran/faster-whisper-base](https://huggingface.co/Systran/faster-whisper-base)
+- `small`：[Systran/faster-whisper-small](https://huggingface.co/Systran/faster-whisper-small)
+
+如果是中文会议，初次使用通常建议先从 `base` 开始；机器更弱时用 `tiny`，想换更高准确率再试 `small`。
+
+1. 在有网机器打开上面的模型页面。
+
+2. 进入 `Files and versions`，把该仓库中的文件完整下载下来。
+
+至少要保证这些文件和目录都在同一个模型目录里：
+
+- `config.json`
+- `tokenizer.json`
+- `vocabulary.*`
+- `preprocessor_config.json`
+- `model.bin`
+
+3. 在本地整理成一个独立目录，例如：
+
+```text
+/models/faster-whisper-base/
+```
+
+目录内应当能看到类似：
+
+```text
+/models/faster-whisper-base/config.json
+/models/faster-whisper-base/model.bin
+/models/faster-whisper-base/tokenizer.json
+```
+
+4. 把整个目录拷贝到无网机器，例如：
+
+```text
+/opt/minuteflow/models/faster-whisper-base
+```
+
+5. 在无网机器安装运行依赖：
+
+```bash
+uv sync
+uv run minuteflow deps install transcription
+```
+
+6. 直接把 `MINUTEFLOW_WHISPER_MODEL` 指向本地模型目录：
+
+```bash
+export MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+export MINUTEFLOW_WHISPER_MODEL=/opt/minuteflow/models/faster-whisper-base
+export MINUTEFLOW_WHISPER_DEVICE=cpu
+export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+```
+
+7. 如果无网机器还能访问你的内网大模型 API，可以同时这样配置：
+
+```bash
+export MINUTEFLOW_LLM_BASE_URL=http://your-internal-openai-compatible-endpoint/v1
+export MINUTEFLOW_LLM_MODEL=your-text-model
+export MINUTEFLOW_LLM_API_KEY=your-key
+
+export MINUTEFLOW_MM_BASE_URL=http://your-internal-openai-compatible-endpoint/v1
+export MINUTEFLOW_MM_MODEL=your-mm-model
+export MINUTEFLOW_MM_API_KEY=your-key
+```
+
+8. 先做一次自检，再实际跑一段音频或视频验证：
+
+```bash
+uv run minuteflow doctor check
+```
+
+说明：
+
+- 这里的关键点不是把模型放进 Hugging Face 缓存，而是直接把 `MINUTEFLOW_WHISPER_MODEL` 设为本地目录路径
+- 这种方式最适合手工网页下载，不依赖有网机器先执行一次 Python 预热
+- 如果你下载的是 `tiny` 或 `small`，只需要把环境变量里的路径改成对应目录即可
+
+#### 方案 B：先在有网机器预热缓存，再整体迁移
+
+如果你不想手动逐个点网页文件，或者后续还想顺手带上 `whisperx` / `pyannote.audio` 的缓存，可以继续使用“先缓存、再打包”的方式。
+
+建议统一指定缓存目录，便于打包和迁移：
+
+```bash
+export HF_HOME=/absolute/path/to/model-cache/huggingface
+export XDG_CACHE_HOME=/absolute/path/to/model-cache
+mkdir -p "$HF_HOME"
+```
+
+#### 方案 B-1：只离线准备 `faster-whisper` 模型
+
+这是最推荐的离线方案，依赖最少，也最容易在 CPU 机器上稳定运行。
+
+1. 在有网机器安装依赖：
+
+```bash
+uv sync
+uv run minuteflow deps install transcription
+```
+
+2. 选择你要预下载的模型，例如 `tiny`、`base`、`small`：
+
+```bash
+export MINUTEFLOW_WHISPER_MODEL=base
+export MINUTEFLOW_WHISPER_DEVICE=cpu
+export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+```
+
+3. 用一次最小化加载把模型下载到缓存：
+
+```bash
+uv run python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8')"
+```
+
+如果你想下载别的模型，把上面命令里的 `base` 改成需要的型号即可，例如：
+
+```bash
+uv run python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
+```
+
+4. 打包缓存目录并拷贝到目标机器：
+
+```bash
+tar -C /absolute/path/to/model-cache -czf minuteflow-model-cache.tar.gz huggingface
+```
+
+5. 在离线机器解压，并保持同样的环境变量：
+
+```bash
+mkdir -p /absolute/path/to/model-cache
+tar -C /absolute/path/to/model-cache -xzf minuteflow-model-cache.tar.gz
+
+export HF_HOME=/absolute/path/to/model-cache/huggingface
+export XDG_CACHE_HOME=/absolute/path/to/model-cache
+export MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+export MINUTEFLOW_WHISPER_MODEL=base
+export MINUTEFLOW_WHISPER_DEVICE=cpu
+export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+```
+
+6. 先做一次自检，再执行工作流：
+
+```bash
+uv run minuteflow doctor check
+```
+
+说明：
+
+- `doctor check` 主要检查环境与依赖，不保证逐个验证模型文件是否完整
+- 最稳妥的验证方式，是在离线机器上实际跑一次转写
+- 如果离线机器和下载机器的架构差异很大，优先保证 Python 依赖重新按目标机器安装；模型缓存只负责权重，不替代依赖安装
+
+#### 方案 B-2：离线准备 `whisperx` 与说话人分离模型
+
+如果你需要时间对齐或 diarization，可以额外预热 `whisperx` 和 `pyannote.audio`。这条路线依赖更重，建议只在确实需要时使用。
+
+1. 在有网机器安装相关依赖：
+
+```bash
+uv sync
+uv run minuteflow deps install whisperx
+uv run minuteflow deps install diarization
+```
+
+2. 配置 Hugging Face Token：
+
+```bash
+export MINUTEFLOW_HF_TOKEN=your-huggingface-token
+```
+
+3. 预下载 WhisperX 转写模型：
+
+```bash
+uv run python -c "import whisperx; whisperx.load_model('base', 'cpu', compute_type='int8')"
+```
+
+4. 可选：再预下载对齐模型与说话人分离模型：
+
+```bash
+uv run python -c "import whisperx; whisperx.load_align_model(language_code='zh', device='cpu')"
+uv run python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization-3.1', use_auth_token='$MINUTEFLOW_HF_TOKEN')"
+```
+
+5. 然后和方案 A 一样，整体拷贝 `HF_HOME` / `XDG_CACHE_HOME` 对应缓存目录到离线机器。
+
+注意：
+
+- `pyannote.audio` 相关模型通常要求你先在 Hugging Face 网页端接受协议
+- `whisperx` 的对齐模型会随语言不同而变化；如果你的会议主要是中文，建议至少预热一次 `language_code='zh'`
+- 如果离线环境只是做普通会议转写，优先使用 `faster-whisper`，维护成本更低
+- 如果你只是想“网页手工下载后直接拷贝使用”，优先用上面的方案 A，不建议把 `whisperx` 作为首选
+
+#### 不在本教程覆盖范围内的模型
+
+README 里提到的文本模型和多模态模型，当前接入方式是兼容 OpenAI 接口的远程端点：
+
+- `MINUTEFLOW_LLM_*`
+- `MINUTEFLOW_MM_*`
+
+这两类不是 MinuteFlow 直接在本地下载和管理的模型权重，因此不适用上面的离线缓存流程。若你要完全离线部署这两类能力，通常需要先在你自己的推理服务里把模型部署好，再把 `BASE_URL` / `MODEL` 指向那个本地或局域网端点。
+
 ### 5. 检查环境
 
 ```bash
