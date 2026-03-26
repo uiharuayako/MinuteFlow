@@ -25,10 +25,9 @@ def transcribe_media(
     )
 
 
-def main() -> None:
-    mcp.run(transport="stdio")
+def main(transport: str = "stdio", mount_path: str | None = None) -> None:
+    mcp.run(transport=transport, mount_path=mount_path)
 
 
 if __name__ == "__main__":
     main()
-

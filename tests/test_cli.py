@@ -3,8 +3,9 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from minuteflow.cli import app
+from minuteflow import cli
 
+app = cli.app
 runner = CliRunner()
 
 
@@ -59,3 +60,33 @@ def test_install_codex_replaces_legacy_config_block(monkeypatch, tmp_path: Path)
     assert "# BEGIN ai_meeting MCP" not in config_text
     assert "ai_meeting_pipeline" not in config_text
     assert "# BEGIN minuteflow MCP" in config_text
+
+
+def test_mcp_transcription_accepts_remote_transport(monkeypatch) -> None:
+    captured: dict[str, str | None] = {}
+
+    def fake_main(transport: str = "stdio", mount_path: str | None = None) -> None:
+        captured["transport"] = transport
+        captured["mount_path"] = mount_path
+
+    monkeypatch.setattr(cli.transcription_server, "main", fake_main)
+
+    result = runner.invoke(app, ["mcp", "transcription", "--transport", "streamable-http"])
+
+    assert result.exit_code == 0
+    assert captured == {"transport": "streamable-http", "mount_path": None}
+
+
+def test_mcp_pipeline_accepts_sse_mount_path(monkeypatch) -> None:
+    captured: dict[str, str | None] = {}
+
+    def fake_main(transport: str = "stdio", mount_path: str | None = None) -> None:
+        captured["transport"] = transport
+        captured["mount_path"] = mount_path
+
+    monkeypatch.setattr(cli.pipeline_server, "main", fake_main)
+
+    result = runner.invoke(app, ["mcp", "pipeline", "--transport", "sse", "--mount-path", "/mcp"])
+
+    assert result.exit_code == 0
+    assert captured == {"transport": "sse", "mount_path": "/mcp"}

@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import xml.etree.ElementTree as ET
+from typing import Literal
 from pathlib import Path
 
 import typer
@@ -24,6 +25,8 @@ app.add_typer(workflow_app, name="workflow")
 app.add_typer(config_app, name="config")
 app.add_typer(install_app, name="install")
 app.add_typer(doctor_app, name="doctor")
+
+McpTransport = Literal["stdio", "sse", "streamable-http"]
 
 
 def _project_root() -> Path:
@@ -168,23 +171,35 @@ def _upsert_genmate_settings(settings_path: Path, mcp_json: str) -> None:
 
 
 @mcp_app.command("media")
-def mcp_media() -> None:
-    media_server.main()
+def mcp_media(
+    transport: McpTransport = typer.Option("stdio", "--transport"),
+    mount_path: str = typer.Option("", "--mount-path", help="Optional mount path for SSE transport."),
+) -> None:
+    media_server.main(transport=transport, mount_path=mount_path or None)
 
 
 @mcp_app.command("documents")
-def mcp_documents() -> None:
-    document_server.main()
+def mcp_documents(
+    transport: McpTransport = typer.Option("stdio", "--transport"),
+    mount_path: str = typer.Option("", "--mount-path", help="Optional mount path for SSE transport."),
+) -> None:
+    document_server.main(transport=transport, mount_path=mount_path or None)
 
 
 @mcp_app.command("transcription")
-def mcp_transcription() -> None:
-    transcription_server.main()
+def mcp_transcription(
+    transport: McpTransport = typer.Option("stdio", "--transport"),
+    mount_path: str = typer.Option("", "--mount-path", help="Optional mount path for SSE transport."),
+) -> None:
+    transcription_server.main(transport=transport, mount_path=mount_path or None)
 
 
 @mcp_app.command("pipeline")
-def mcp_pipeline() -> None:
-    pipeline_server.main()
+def mcp_pipeline(
+    transport: McpTransport = typer.Option("stdio", "--transport"),
+    mount_path: str = typer.Option("", "--mount-path", help="Optional mount path for SSE transport."),
+) -> None:
+    pipeline_server.main(transport=transport, mount_path=mount_path or None)
 
 
 @workflow_app.command("run")

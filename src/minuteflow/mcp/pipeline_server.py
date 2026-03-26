@@ -35,10 +35,9 @@ def answer_meeting_question(packet_path: str, question: str) -> dict:
     return service.answer_question(packet_path=packet_path, question=question)
 
 
-def main() -> None:
-    mcp.run(transport="stdio")
+def main(transport: str = "stdio", mount_path: str | None = None) -> None:
+    mcp.run(transport=transport, mount_path=mount_path)
 
 
 if __name__ == "__main__":
     main()
-

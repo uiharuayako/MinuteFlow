@@ -292,6 +292,131 @@ export MINUTEFLOW_MM_API_KEY=your-key
 export MINUTEFLOW_HF_TOKEN=your-huggingface-token
 ```
 
+## 部署建议
+
+### 场景 1：本机无显卡，但有文本模型和多模态模型 API
+
+这是当前最推荐、也最容易稳定落地的配置方式：
+
+- 本机负责：媒体探测、抽音轨、CPU 转写、文档解析、抽帧
+- 远程 API 负责：总结 / 问答 / 视频关键帧语义理解
+- 可选跳过：说话人分离（CPU 上通常更慢）
+
+建议环境变量：
+
+```bash
+export MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+export MINUTEFLOW_WHISPER_DEVICE=cpu
+export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+export MINUTEFLOW_WHISPER_MODEL=base
+export MINUTEFLOW_TRANSCRIPTION_LANGUAGE=zh
+
+export MINUTEFLOW_LLM_BASE_URL=http://your-openai-compatible-endpoint/v1
+export MINUTEFLOW_LLM_MODEL=your-text-model
+export MINUTEFLOW_LLM_API_KEY=your-key
+
+export MINUTEFLOW_MM_BASE_URL=http://your-openai-compatible-endpoint/v1
+export MINUTEFLOW_MM_MODEL=your-mm-model
+export MINUTEFLOW_MM_API_KEY=your-key
+```
+
+建议安装：
+
+```bash
+uv sync --extra transcription
+```
+
+建议运行方式：
+
+```bash
+uv run minuteflow workflow run \
+  --media /absolute/path/to/meeting.mp4 \
+  --doc /absolute/path/to/agenda.md \
+  --output-dir /absolute/path/to/output
+```
+
+如果你只想先验证 CPU 机器上的本地处理链路，可以先关闭总结或视觉分析：
+
+```bash
+uv run minuteflow workflow run \
+  --media /absolute/path/to/meeting.mp4 \
+  --output-dir /absolute/path/to/output \
+  --no-summary
+```
+
+或者：
+
+```bash
+uv run minuteflow workflow run \
+  --media /absolute/path/to/meeting.mp4 \
+  --output-dir /absolute/path/to/output \
+  --no-visual
+```
+
+### 场景 2：本机无显卡，但另有一台带 GPU 的 Linux 机器
+
+这种场景是否更适合把服务部署到 Linux，关键取决于“媒体文件最终由谁读取”。
+
+更适合部署到 Linux GPU 机器的情况：
+
+- 会议视频 / 音频本来就存放在 Linux 机器上
+- 或者 PC 与 Linux 共享同一份 NAS / 挂载目录
+- 或者你的上层系统本身就会先把文件同步到 Linux 再发起处理
+
+不太适合直接远程部署的情况：
+
+- 文件只在本机 PC 上，Linux 机器无法直接访问这些本地路径
+- 希望远端 MCP 直接读取类似 `/Users/...` 或 `C:\\...` 这类仅本机存在的路径
+
+原因是当前 MinuteFlow 的 MCP 工具接受的是“服务所在机器可访问的本地文件路径”。
+
+在这种双机架构里，我更建议：
+
+- Linux GPU 机器负责转写、可选 diarization、可选视觉分析
+- 你的 PC 负责调用远程 MCP 服务，或只负责上层 Agent 编排
+- 文本总结 / 多模态理解继续走你已有的 API，也可以直接从 Linux 发起
+
+### 远程 MCP 传输方式
+
+MinuteFlow 当前支持把 MCP 服务以以下方式运行：
+
+- `stdio`
+- `sse`
+- `streamable-http`
+
+如果是本机集成 Codex / GenMate，优先继续用 `stdio`。
+
+如果是部署到 Linux 供远程访问，更推荐 `streamable-http`；`sse` 适合兼容旧客户端，但不建议作为新部署的首选。
+
+远程运行时，可通过 `FASTMCP_HOST` / `FASTMCP_PORT` 控制监听地址：
+
+```bash
+export FASTMCP_HOST=0.0.0.0
+export FASTMCP_PORT=8001
+```
+
+例如在 Linux GPU 机器上启动转写服务：
+
+```bash
+MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper \
+MINUTEFLOW_WHISPER_DEVICE=cuda \
+MINUTEFLOW_WHISPER_COMPUTE_TYPE=float16 \
+MINUTEFLOW_WHISPER_MODEL=small \
+FASTMCP_HOST=0.0.0.0 \
+FASTMCP_PORT=8001 \
+uv run minuteflow mcp transcription --transport streamable-http
+```
+
+如果你需要兼容只支持 SSE 的客户端，也可以这样启动：
+
+```bash
+FASTMCP_HOST=0.0.0.0 \
+FASTMCP_PORT=8001 \
+uv run minuteflow mcp transcription --transport sse
+```
+
+更完整的建议是把 `media`、`transcription`、`pipeline` 中真正需要远程运行的部分按职责拆开部署，而不是默认把所有服务都放到远端。
+
 ## 已验证状态
 
 当前仓库已经跑通的内容包括：
