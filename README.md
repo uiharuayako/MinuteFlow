@@ -110,6 +110,11 @@ Skill 负责决定：
 uv sync
 ```
 
+说明：
+
+- 仓库默认不提交 `uv.lock`，避免在无 GPU、ARM、或异构 Linux 环境下被不必要的重型依赖锁定
+- 如需最小 CPU 安装，优先直接按当前平台解析依赖
+
 ### 2. 启用转写能力
 
 ```bash
@@ -133,6 +138,13 @@ uv sync --extra transcription --extra diarization
 ```bash
 uv sync --extra whisperx
 ```
+
+如果你在无 GPU 机器上部署，尤其是 ARM Linux / aarch64 环境，建议：
+
+- 不要安装 `whisperx`
+- 不要安装 `diarization`
+- 仅安装 `transcription` extra
+- 将总结 / 问答 / 多模态理解交给远程 API
 
 ### 5. 检查环境
 
@@ -182,6 +194,39 @@ uv run minuteflow doctor check
 - `ffmpeg` / `ffprobe` 可执行
 - 你选择的转写依赖已经安装
 - 如果启用 diarization，`MINUTEFLOW_HF_TOKEN` 已配置
+
+### 无 GPU / ARM 环境避坑
+
+如果你在无 GPU 的 Linux 机器，特别是 `aarch64` / ARM 环境里执行 `uv sync`，曾遇到 `triton`、`torch`、`nvidia-*`、`nvidia_cusolver_cu12` 之类错误，通常不是 MinuteFlow 的主链路必须依赖了这些包，而是某条重型可选依赖链被错误带入。
+
+推荐安装方式：
+
+```bash
+rm -rf .venv
+uv sync --extra transcription
+```
+
+如需测试：
+
+```bash
+uv sync --group dev
+```
+
+不建议在这类环境默认安装：
+
+```bash
+uv sync --extra transcription --extra diarization
+uv sync --extra whisperx
+```
+
+推荐运行时配置：
+
+```bash
+export MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+export MINUTEFLOW_WHISPER_DEVICE=cpu
+export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+export MINUTEFLOW_WHISPER_MODEL=base
+```
 
 ### 3. 用最小命令跑通一条链路
 

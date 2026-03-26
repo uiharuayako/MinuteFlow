@@ -8,6 +8,12 @@
 uv sync
 ```
 
+说明：
+
+- 仓库默认不携带 `uv.lock`
+- 这样可以减少无 GPU、ARM、或异构 Linux 环境被锁入 `torch` / `triton` / `nvidia-*` 依赖链的概率
+- 建议按目标机器平台重新解析依赖
+
 启用基础转写：
 
 ```bash
@@ -23,6 +29,19 @@ uv sync --extra transcription --extra diarization
 启用 `whisperx`：
 
 ```bash
+uv sync --extra whisperx
+```
+
+如果目标机器没有 GPU，尤其是 ARM Linux / `aarch64`，建议只安装：
+
+```bash
+uv sync --extra transcription
+```
+
+避免默认安装：
+
+```bash
+uv sync --extra transcription --extra diarization
 uv sync --extra whisperx
 ```
 
