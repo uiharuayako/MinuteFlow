@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import shutil
+import sys
 import xml.etree.ElementTree as ET
 from typing import Literal
 from pathlib import Path
@@ -19,14 +21,17 @@ workflow_app = typer.Typer(help="Run the meeting workflow directly.")
 config_app = typer.Typer(help="Print ready-to-paste MCP configuration snippets.")
 install_app = typer.Typer(help="Install local skill links.")
 doctor_app = typer.Typer(help="Check local runtime readiness.")
+deps_app = typer.Typer(help="Install optional runtime dependency profiles.")
 
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(config_app, name="config")
 app.add_typer(install_app, name="install")
 app.add_typer(doctor_app, name="doctor")
+app.add_typer(deps_app, name="deps")
 
 McpTransport = Literal["stdio", "sse", "streamable-http"]
+DependencyProfile = Literal["transcription", "diarization", "whisperx"]
 
 
 def _project_root() -> Path:
@@ -91,6 +96,13 @@ def _write_if_requested(content: str, output_path: str | None) -> None:
     target = Path(output_path).expanduser().resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
+
+
+def _requirements_file(profile: DependencyProfile) -> Path:
+    requirements_path = _project_root() / "requirements" / f"{profile}.txt"
+    if not requirements_path.exists():
+        raise RuntimeError(f"Missing optional dependency profile: {requirements_path}")
+    return requirements_path
 
 
 def _upsert_codex_config_block(config_path: Path, snippet: str) -> None:
@@ -258,6 +270,16 @@ def install_codex() -> None:
     config_path = codex_home / "config.toml"
     _upsert_codex_config_block(config_path, _codex_snippet(root))
     typer.echo(f"Updated Codex MCP config: {config_path}")
+
+
+@deps_app.command("install")
+def deps_install(
+    profile: DependencyProfile = typer.Argument(..., help="Dependency profile to install."),
+) -> None:
+    requirements_path = _requirements_file(profile)
+    command = ["uv", "pip", "install", "--python", sys.executable, "-r", str(requirements_path)]
+    subprocess.run(command, check=True)
+    typer.echo(f"Installed optional dependency profile: {profile}")
 
 
 @install_app.command("genmate")

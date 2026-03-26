@@ -113,12 +113,13 @@ uv sync
 说明：
 
 - 仓库默认不提交 `uv.lock`，避免在无 GPU、ARM、或异构 Linux 环境下被不必要的重型依赖锁定
+- `transcription` / `diarization` / `whisperx` 已移出根 `pyproject.toml`，改为独立 requirements 配置，基础 `uv sync` 不会再解析它们
 - 如需最小 CPU 安装，优先直接按当前平台解析依赖
 
 ### 2. 启用转写能力
 
 ```bash
-uv sync --extra transcription
+uv run minuteflow deps install transcription
 ```
 
 如需运行测试，再补上开发依赖：
@@ -130,20 +131,21 @@ uv sync --group dev
 ### 3. 如需说话人分离
 
 ```bash
-uv sync --extra transcription --extra diarization
+uv run minuteflow deps install transcription
+uv run minuteflow deps install diarization
 ```
 
 ### 4. 如需 WhisperX 路线
 
 ```bash
-uv sync --extra whisperx
+uv run minuteflow deps install whisperx
 ```
 
 如果你在无 GPU 机器上部署，尤其是 ARM Linux / aarch64 环境，建议：
 
 - 不要安装 `whisperx`
 - 不要安装 `diarization`
-- 仅安装 `transcription` extra
+- 仅安装 `transcription` 配置
 - 将总结 / 问答 / 多模态理解交给远程 API
 
 ### 5. 检查环境
@@ -197,13 +199,13 @@ uv run minuteflow doctor check
 
 ### 无 GPU / ARM 环境避坑
 
-如果你在无 GPU 的 Linux 机器，特别是 `aarch64` / ARM 环境里执行 `uv sync`，曾遇到 `triton`、`torch`、`nvidia-*`、`nvidia_cusolver_cu12` 之类错误，通常不是 MinuteFlow 的主链路必须依赖了这些包，而是某条重型可选依赖链被错误带入。
+如果你在无 GPU 的 Linux 机器，特别是 `aarch64` / ARM 环境里执行 `uv sync`，曾遇到 `triton`、`torch`、`nvidia-*`、`nvidia_cusolver_cu12` 之类错误，根因通常不是 MinuteFlow 的主链路，而是 `whisperx` / `pyannote.audio` 这类重型依赖在解析阶段被带入。
 
 推荐安装方式：
 
 ```bash
 rm -rf .venv
-uv sync --extra transcription
+uv run minuteflow deps install transcription
 ```
 
 如需测试：
@@ -215,8 +217,9 @@ uv sync --group dev
 不建议在这类环境默认安装：
 
 ```bash
-uv sync --extra transcription --extra diarization
-uv sync --extra whisperx
+uv run minuteflow deps install transcription
+uv run minuteflow deps install diarization
+uv run minuteflow deps install whisperx
 ```
 
 推荐运行时配置：
@@ -270,7 +273,7 @@ uv run python -m pytest -q
 
 - 操作系统与 CPU / GPU 信息
 - Python 版本、`uv --version`、`ffmpeg -version`
-- 安装命令，例如 `uv sync --extra transcription`
+- 安装命令，例如 `uv run minuteflow deps install transcription`
 - 使用的输入文件类型，例如 `mp4` / `wav` / `pptx`
 - 是否配置了 `MINUTEFLOW_HF_TOKEN`
 - 是否配置了 `MINUTEFLOW_LLM_*` / `MINUTEFLOW_MM_*`
@@ -368,7 +371,7 @@ export MINUTEFLOW_MM_API_KEY=your-key
 建议安装：
 
 ```bash
-uv sync --extra transcription
+uv run minuteflow deps install transcription
 ```
 
 建议运行方式：

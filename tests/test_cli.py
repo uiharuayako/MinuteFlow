@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -90,3 +91,35 @@ def test_mcp_pipeline_accepts_sse_mount_path(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert captured == {"transport": "sse", "mount_path": "/mcp"}
+
+
+def test_deps_install_uses_project_requirements(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+    project_root = tmp_path / "repo"
+    requirements_dir = project_root / "requirements"
+    requirements_dir.mkdir(parents=True)
+    (requirements_dir / "transcription.txt").write_text("faster-whisper>=1.1.1\n", encoding="utf-8")
+
+    def fake_project_root() -> Path:
+        return project_root
+
+    def fake_run(command: list[str], check: bool) -> None:
+        captured["command"] = command
+        captured["check"] = check
+
+    monkeypatch.setattr(cli, "_project_root", fake_project_root)
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["deps", "install", "transcription"])
+
+    assert result.exit_code == 0
+    assert captured["check"] is True
+    assert captured["command"] == [
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        sys.executable,
+        "-r",
+        str(requirements_dir / "transcription.txt"),
+    ]

@@ -69,7 +69,7 @@ class TranscriptionService:
             from faster_whisper import WhisperModel
         except Exception as exc:
             raise RuntimeError(
-                "faster-whisper is not installed. Run `uv sync --extra transcription`."
+                "faster-whisper is not installed. Run `uv run minuteflow deps install transcription`."
             ) from exc
 
         device = "cpu" if self._config.whisper_device == "auto" else self._config.whisper_device
@@ -135,7 +135,7 @@ class TranscriptionService:
         try:
             import whisperx
         except Exception as exc:
-            raise RuntimeError("whisperx is not installed. Run `uv sync --extra transcription`.") from exc
+            raise RuntimeError("whisperx is not installed. Run `uv run minuteflow deps install whisperx`.") from exc
 
         device = "cpu" if self._config.whisper_device == "auto" else self._config.whisper_device
         compute_type = "int8" if self._config.whisper_compute_type == "auto" else self._config.whisper_compute_type
@@ -247,4 +247,3 @@ class TranscriptionService:
         if not speakers:
             return None
         return Counter(speakers).most_common(1)[0][0]
-

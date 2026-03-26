@@ -11,38 +11,41 @@ uv sync
 说明：
 
 - 仓库默认不携带 `uv.lock`
+- `transcription` / `diarization` / `whisperx` 已移出根 `pyproject.toml`，改为独立 requirements 配置，基础 `uv sync` 不会再解析它们
 - 这样可以减少无 GPU、ARM、或异构 Linux 环境被锁入 `torch` / `triton` / `nvidia-*` 依赖链的概率
 - 建议按目标机器平台重新解析依赖
 
 启用基础转写：
 
 ```bash
-uv sync --extra transcription
+uv run minuteflow deps install transcription
 ```
 
 启用说话人分离：
 
 ```bash
-uv sync --extra transcription --extra diarization
+uv run minuteflow deps install transcription
+uv run minuteflow deps install diarization
 ```
 
 启用 `whisperx`：
 
 ```bash
-uv sync --extra whisperx
+uv run minuteflow deps install whisperx
 ```
 
 如果目标机器没有 GPU，尤其是 ARM Linux / `aarch64`，建议只安装：
 
 ```bash
-uv sync --extra transcription
+uv run minuteflow deps install transcription
 ```
 
 避免默认安装：
 
 ```bash
-uv sync --extra transcription --extra diarization
-uv sync --extra whisperx
+uv run minuteflow deps install transcription
+uv run minuteflow deps install diarization
+uv run minuteflow deps install whisperx
 ```
 
 检查本地环境：
@@ -171,7 +174,7 @@ export MINUTEFLOW_MM_API_KEY=your-key
 安装建议：
 
 ```bash
-uv sync --extra transcription
+uv run minuteflow deps install transcription
 ```
 
 这种模式下：
