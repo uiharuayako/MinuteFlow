@@ -320,6 +320,11 @@ export MINUTEFLOW_HF_TOKEN=your-huggingface-token
 - `docs/integration.md`：集成说明
 - `docs/oss-survey.md`：开源方案调研
 
+## 贡献与许可
+
+- 贡献方式见 `CONTRIBUTING.md`
+- 开源许可证见 `LICENSE`（Apache-2.0）
+
 ## 下一步建议
 
 如果你接下来要把它用于真实会议，我建议按这个顺序推进：
