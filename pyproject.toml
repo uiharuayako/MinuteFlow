@@ -1,0 +1,46 @@
+[project]
+name = "minuteflow"
+version = "0.1.0"
+description = "Local-first meeting understanding workflow with MCP servers and orchestrator skills."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp>=1.0.0",
+  "openai>=1.65.0",
+  "openpyxl>=3.1.5",
+  "pillow>=11.0.0",
+  "pydantic>=2.9.0",
+  "pypdf>=5.0.0",
+  "python-docx>=1.1.2",
+  "python-pptx>=1.0.2",
+  "pyyaml>=6.0.2",
+  "typer>=0.12.5",
+]
+
+[project.optional-dependencies]
+transcription = [
+  "faster-whisper>=1.1.1",
+]
+diarization = [
+  "pyannote.audio>=3.3.2",
+]
+whisperx = [
+  "whisperx>=3.3.2",
+  "pyannote.audio>=3.3.2",
+]
+
+[project.scripts]
+minuteflow = "minuteflow.cli:app"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
