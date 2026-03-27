@@ -10,6 +10,7 @@ from typing import Literal
 from pathlib import Path
 
 import typer
+from dotenv import load_dotenv
 
 from minuteflow.config import RuntimeConfig
 from minuteflow.mcp import document_server, media_server, pipeline_server, transcription_server
@@ -40,6 +41,15 @@ def _project_root() -> Path:
         if (candidate / "pyproject.toml").exists():
             return candidate
     raise RuntimeError("Unable to locate project root from cli.py")
+
+
+def _load_project_dotenv() -> None:
+    env_path = _project_root() / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=False)
+
+
+_load_project_dotenv()
 
 
 def _genmate_payload(root: Path) -> dict:

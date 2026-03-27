@@ -215,25 +215,31 @@ uv sync
 uv run minuteflow deps install transcription
 ```
 
-6. 直接把 `MINUTEFLOW_WHISPER_MODEL` 指向本地模型目录：
+6. 复制一份 `.env`，并把 `MINUTEFLOW_WHISPER_MODEL` 指向本地模型目录：
 
 ```bash
-export MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
-export MINUTEFLOW_WHISPER_MODEL=/opt/minuteflow/models/faster-whisper-base
-export MINUTEFLOW_WHISPER_DEVICE=cpu
-export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+cp .env.example .env
 ```
 
-7. 如果无网机器还能访问你的内网大模型 API，可以同时这样配置：
+在 `.env` 中写入：
 
 ```bash
-export MINUTEFLOW_LLM_BASE_URL=http://your-internal-openai-compatible-endpoint/v1
-export MINUTEFLOW_LLM_MODEL=your-text-model
-export MINUTEFLOW_LLM_API_KEY=your-key
+MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+MINUTEFLOW_WHISPER_MODEL=/opt/minuteflow/models/faster-whisper-base
+MINUTEFLOW_WHISPER_DEVICE=cpu
+MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+```
 
-export MINUTEFLOW_MM_BASE_URL=http://your-internal-openai-compatible-endpoint/v1
-export MINUTEFLOW_MM_MODEL=your-mm-model
-export MINUTEFLOW_MM_API_KEY=your-key
+7. 如果无网机器还能访问你的内网大模型 API，可以继续把下面这些项补进同一个 `.env`：
+
+```bash
+MINUTEFLOW_LLM_BASE_URL=http://your-internal-openai-compatible-endpoint/v1
+MINUTEFLOW_LLM_MODEL=your-text-model
+MINUTEFLOW_LLM_API_KEY=your-key
+
+MINUTEFLOW_MM_BASE_URL=http://your-internal-openai-compatible-endpoint/v1
+MINUTEFLOW_MM_MODEL=your-mm-model
+MINUTEFLOW_MM_API_KEY=your-key
 ```
 
 8. 先做一次自检，再实际跑一段音频或视频验证：
@@ -246,18 +252,27 @@ uv run minuteflow doctor check
 
 - 这里的关键点不是把模型放进 Hugging Face 缓存，而是直接把 `MINUTEFLOW_WHISPER_MODEL` 设为本地目录路径
 - 这种方式最适合手工网页下载，不依赖有网机器先执行一次 Python 预热
-- 如果你下载的是 `tiny` 或 `small`，只需要把环境变量里的路径改成对应目录即可
+- 如果你下载的是 `tiny` 或 `small`，只需要把 `.env` 里的路径改成对应目录即可
 
 #### 方案 B：先在有网机器预热缓存，再整体迁移
 
 如果你不想手动逐个点网页文件，或者后续还想顺手带上 `whisperx` / `pyannote.audio` 的缓存，可以继续使用“先缓存、再打包”的方式。
 
-建议统一指定缓存目录，便于打包和迁移：
+建议统一指定缓存目录，便于打包和迁移。推荐同时写入 `.env`，这样后续运行不需要重复 `export`：
 
 ```bash
-export HF_HOME=/absolute/path/to/model-cache/huggingface
-export XDG_CACHE_HOME=/absolute/path/to/model-cache
-mkdir -p "$HF_HOME"
+cp .env.example .env
+```
+
+```bash
+HF_HOME=/absolute/path/to/model-cache/huggingface
+XDG_CACHE_HOME=/absolute/path/to/model-cache
+```
+
+然后创建缓存目录：
+
+```bash
+mkdir -p /absolute/path/to/model-cache/huggingface
 ```
 
 #### 方案 B-1：只离线准备 `faster-whisper` 模型
@@ -271,24 +286,25 @@ uv sync
 uv run minuteflow deps install transcription
 ```
 
-2. 选择你要预下载的模型，例如 `tiny`、`base`、`small`：
+2. 选择你要预下载的模型，例如 `tiny`、`base`、`small`，并写入 `.env`：
 
 ```bash
-export MINUTEFLOW_WHISPER_MODEL=base
-export MINUTEFLOW_WHISPER_DEVICE=cpu
-export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+MINUTEFLOW_WHISPER_MODEL=base
+MINUTEFLOW_WHISPER_DEVICE=cpu
+MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
 ```
 
 3. 用一次最小化加载把模型下载到缓存：
 
 ```bash
-uv run python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8')"
+uv run --env-file .env python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8')"
 ```
 
 如果你想下载别的模型，把上面命令里的 `base` 改成需要的型号即可，例如：
 
 ```bash
-uv run python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
+uv run --env-file .env python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
 ```
 
 4. 打包缓存目录并拷贝到目标机器：
@@ -297,18 +313,22 @@ uv run python -c "from faster_whisper import WhisperModel; WhisperModel('small',
 tar -C /absolute/path/to/model-cache -czf minuteflow-model-cache.tar.gz huggingface
 ```
 
-5. 在离线机器解压，并保持同样的环境变量：
+5. 在离线机器解压，并保持同样的 `.env` 配置：
 
 ```bash
 mkdir -p /absolute/path/to/model-cache
 tar -C /absolute/path/to/model-cache -xzf minuteflow-model-cache.tar.gz
+```
 
-export HF_HOME=/absolute/path/to/model-cache/huggingface
-export XDG_CACHE_HOME=/absolute/path/to/model-cache
-export MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
-export MINUTEFLOW_WHISPER_MODEL=base
-export MINUTEFLOW_WHISPER_DEVICE=cpu
-export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+离线机器的 `.env` 至少应包含：
+
+```bash
+HF_HOME=/absolute/path/to/model-cache/huggingface
+XDG_CACHE_HOME=/absolute/path/to/model-cache
+MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+MINUTEFLOW_WHISPER_MODEL=base
+MINUTEFLOW_WHISPER_DEVICE=cpu
+MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
 ```
 
 6. 先做一次自检，再执行工作流：
@@ -335,23 +355,23 @@ uv run minuteflow deps install whisperx
 uv run minuteflow deps install diarization
 ```
 
-2. 配置 Hugging Face Token：
+2. 把 Hugging Face Token 写入 `.env`：
 
 ```bash
-export MINUTEFLOW_HF_TOKEN=your-huggingface-token
+MINUTEFLOW_HF_TOKEN=your-huggingface-token
 ```
 
 3. 预下载 WhisperX 转写模型：
 
 ```bash
-uv run python -c "import whisperx; whisperx.load_model('base', 'cpu', compute_type='int8')"
+uv run --env-file .env python -c "import whisperx; whisperx.load_model('base', 'cpu', compute_type='int8')"
 ```
 
 4. 可选：再预下载对齐模型与说话人分离模型：
 
 ```bash
-uv run python -c "import whisperx; whisperx.load_align_model(language_code='zh', device='cpu')"
-uv run python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization-3.1', use_auth_token='$MINUTEFLOW_HF_TOKEN')"
+uv run --env-file .env python -c "import whisperx; whisperx.load_align_model(language_code='zh', device='cpu')"
+uv run --env-file .env python -c "import os; from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization-3.1', use_auth_token=os.environ['MINUTEFLOW_HF_TOKEN'])"
 ```
 
 5. 然后和方案 A 一样，整体拷贝 `HF_HOME` / `XDG_CACHE_HOME` 对应缓存目录到离线机器。
@@ -392,13 +412,15 @@ uv run minuteflow workflow run \
 
 如果你想在本机快速验证 MinuteFlow 是否跑通，建议按下面顺序排查。
 
-### 1. 准备环境变量
+### 1. 准备 `.env` 配置
 
 先从示例文件复制一份本地配置：
 
 ```bash
 cp .env.example .env
 ```
+
+CLI 会自动读取项目根目录的 `.env`，所以通常只需要配置一次；如果 shell 里已经存在同名环境变量，则以 shell 中的值为准。
 
 默认只需要调整这些项：
 
@@ -446,13 +468,13 @@ uv run minuteflow deps install diarization
 uv run minuteflow deps install whisperx
 ```
 
-推荐运行时配置：
+推荐写入 `.env` 的运行时配置：
 
 ```bash
-export MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
-export MINUTEFLOW_WHISPER_DEVICE=cpu
-export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
-export MINUTEFLOW_WHISPER_MODEL=base
+MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+MINUTEFLOW_WHISPER_DEVICE=cpu
+MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+MINUTEFLOW_WHISPER_MODEL=base
 ```
 
 ### 3. 用最小命令跑通一条链路
@@ -540,28 +562,28 @@ uv run minuteflow install genmate
 
 ## 模型配置
 
-如果你希望在流水线内部直接完成视觉理解、总结和问答，可设置以下环境变量。
+如果你希望在流水线内部直接完成视觉理解、总结和问答，建议把下面配置写进项目根目录 `.env`。MinuteFlow CLI 会在启动时自动加载它。
 
 ### 文本模型
 
 ```bash
-export MINUTEFLOW_LLM_BASE_URL=http://your-openai-compatible-endpoint/v1
-export MINUTEFLOW_LLM_MODEL=your-text-model
-export MINUTEFLOW_LLM_API_KEY=your-key
+MINUTEFLOW_LLM_BASE_URL=http://your-openai-compatible-endpoint/v1
+MINUTEFLOW_LLM_MODEL=your-text-model
+MINUTEFLOW_LLM_API_KEY=your-key
 ```
 
 ### 多模态模型
 
 ```bash
-export MINUTEFLOW_MM_BASE_URL=http://your-openai-compatible-endpoint/v1
-export MINUTEFLOW_MM_MODEL=your-mm-model
-export MINUTEFLOW_MM_API_KEY=your-key
+MINUTEFLOW_MM_BASE_URL=http://your-openai-compatible-endpoint/v1
+MINUTEFLOW_MM_MODEL=your-mm-model
+MINUTEFLOW_MM_API_KEY=your-key
 ```
 
 ### Hugging Face Token
 
 ```bash
-export MINUTEFLOW_HF_TOKEN=your-huggingface-token
+MINUTEFLOW_HF_TOKEN=your-huggingface-token
 ```
 
 ## 部署建议
@@ -574,22 +596,22 @@ export MINUTEFLOW_HF_TOKEN=your-huggingface-token
 - 远程 API 负责：总结 / 问答 / 视频关键帧语义理解
 - 可选跳过：说话人分离（CPU 上通常更慢）
 
-建议环境变量：
+建议写入 `.env` 的配置：
 
 ```bash
-export MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
-export MINUTEFLOW_WHISPER_DEVICE=cpu
-export MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
-export MINUTEFLOW_WHISPER_MODEL=base
-export MINUTEFLOW_TRANSCRIPTION_LANGUAGE=zh
+MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+MINUTEFLOW_WHISPER_DEVICE=cpu
+MINUTEFLOW_WHISPER_COMPUTE_TYPE=int8
+MINUTEFLOW_WHISPER_MODEL=base
+MINUTEFLOW_TRANSCRIPTION_LANGUAGE=zh
 
-export MINUTEFLOW_LLM_BASE_URL=http://your-openai-compatible-endpoint/v1
-export MINUTEFLOW_LLM_MODEL=your-text-model
-export MINUTEFLOW_LLM_API_KEY=your-key
+MINUTEFLOW_LLM_BASE_URL=http://your-openai-compatible-endpoint/v1
+MINUTEFLOW_LLM_MODEL=your-text-model
+MINUTEFLOW_LLM_API_KEY=your-key
 
-export MINUTEFLOW_MM_BASE_URL=http://your-openai-compatible-endpoint/v1
-export MINUTEFLOW_MM_MODEL=your-mm-model
-export MINUTEFLOW_MM_API_KEY=your-key
+MINUTEFLOW_MM_BASE_URL=http://your-openai-compatible-endpoint/v1
+MINUTEFLOW_MM_MODEL=your-mm-model
+MINUTEFLOW_MM_API_KEY=your-key
 ```
 
 建议安装：
@@ -660,32 +682,37 @@ MinuteFlow 当前支持把 MCP 服务以以下方式运行：
 
 如果是部署到 Linux 供远程访问，更推荐 `streamable-http`；`sse` 适合兼容旧客户端，但不建议作为新部署的首选。
 
-远程运行时，可通过 `FASTMCP_HOST` / `FASTMCP_PORT` 控制监听地址：
+远程运行时，可把 `FASTMCP_HOST` / `FASTMCP_PORT` 写进 `.env` 控制监听地址：
 
 ```bash
-export FASTMCP_HOST=0.0.0.0
-export FASTMCP_PORT=8001
+FASTMCP_HOST=0.0.0.0
+FASTMCP_PORT=8001
 ```
 
-例如在 Linux GPU 机器上启动转写服务：
+例如在 Linux GPU 机器上，可以先把下面配置写进 `.env`：
 
 ```bash
-MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper \
-MINUTEFLOW_WHISPER_DEVICE=cuda \
-MINUTEFLOW_WHISPER_COMPUTE_TYPE=float16 \
-MINUTEFLOW_WHISPER_MODEL=small \
-FASTMCP_HOST=0.0.0.0 \
-FASTMCP_PORT=8001 \
+MINUTEFLOW_TRANSCRIPTION_BACKEND=faster-whisper
+MINUTEFLOW_WHISPER_DEVICE=cuda
+MINUTEFLOW_WHISPER_COMPUTE_TYPE=float16
+MINUTEFLOW_WHISPER_MODEL=small
+FASTMCP_HOST=0.0.0.0
+FASTMCP_PORT=8001
+```
+
+然后直接启动：
+
+```bash
 uv run minuteflow mcp transcription --transport streamable-http
 ```
 
 如果你需要兼容只支持 SSE 的客户端，也可以这样启动：
 
 ```bash
-FASTMCP_HOST=0.0.0.0 \
-FASTMCP_PORT=8001 \
 uv run minuteflow mcp transcription --transport sse
 ```
+
+临时覆盖某个配置时，仍然可以继续使用单次命令前缀，例如 `MINUTEFLOW_WHISPER_MODEL=tiny uv run minuteflow doctor check`；但长期配置更推荐保存在 `.env`。
 
 更完整的建议是把 `media`、`transcription`、`pipeline` 中真正需要远程运行的部分按职责拆开部署，而不是默认把所有服务都放到远端。
 
